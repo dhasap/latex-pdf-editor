@@ -39,7 +39,7 @@ export const useEditorStore = create<EditorState>()(
         set({ isCompiling: true, error: null, isApiDown: false });
 
         try {
-          const response = await fetch("https://latex.ytotech.com/builds/sync", {
+          const response = await fetch("/api/compile", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
