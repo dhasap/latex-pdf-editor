@@ -3,14 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
-  console.log("[COMPILE] Request received");
+  console.log("[COMPILE] Request received - using GET API workaround");
 
   try {
-    // Parse request body
+    // Parse request body to get LaTeX code
     let body;
     try {
       body = await request.json();
-      console.log("[COMPILE] Request body parsed:", JSON.stringify(body).substring(0, 200));
     } catch (e) {
       console.error("[COMPILE] Failed to parse JSON:", e);
       return NextResponse.json(
@@ -19,26 +18,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate required fields
-    if (!body.compiler || !body.resources) {
-      console.error("[COMPILE] Missing required fields");
+    // Extract LaTeX content from resources
+    const resources = body.resources || [];
+    const mainResource = resources.find((r: { main?: boolean; content?: string }) => r.main) || resources[0];
+
+    if (!mainResource || !mainResource.content) {
       return NextResponse.json(
-        { error: "Missing required fields: compiler, resources" },
+        { error: "Missing LaTeX content" },
         { status: 400 }
       );
     }
 
-    // Forward to LaTeX API
-    console.log("[COMPILE] Calling latex.ytotech.com...");
+    const latexContent = mainResource.content;
+    const compiler = body.compiler || "pdflatex";
+
+    // Build GET URL with query parameters
+    const baseUrl = "https://latex.ytotech.com/builds/sync";
+    const params = new URLSearchParams();
+    params.append("content", latexContent);
+    params.append("compiler", compiler);
+
+    const url = `${baseUrl}?${params.toString()}`;
+    console.log("[COMPILE] Calling GET API with URL length:", url.length);
+
+    // Call the GET API
     let response;
     try {
-      response = await fetch("https://latex.ytotech.com/builds/sync", {
-        method: "POST",
+      response = await fetch(url, {
+        method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/pdf, application/json, text/plain, */*",
+          "Accept": "application/pdf, */*",
         },
-        body: JSON.stringify(body),
       });
       console.log("[COMPILE] LaTeX API responded with status:", response.status);
     } catch (fetchError) {
@@ -49,14 +59,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle error response from LaTeX API
+    // Handle error response
     if (!response.ok) {
       let errorText;
       try {
         errorText = await response.text();
         console.error("[COMPILE] LaTeX API error response:", errorText.substring(0, 500));
       } catch {
-        errorText = "Unable to read error response";
+        errorText = "Unknown error";
       }
 
       return NextResponse.json(
@@ -65,7 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the response as array buffer (more reliable than blob in Edge Runtime)
+    // Get the response as array buffer
     console.log("[COMPILE] Reading response body...");
     let pdfBuffer;
     try {
@@ -91,7 +101,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    // Catch-all for unexpected errors
     console.error("[COMPILE] Unexpected error:", error);
     return NextResponse.json(
       { error: `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}` },
