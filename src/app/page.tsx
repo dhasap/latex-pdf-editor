@@ -5,6 +5,7 @@ import LatexEditor from "@/components/LatexEditor";
 import PDFPreview from "@/components/PDFPreview";
 import CompileButton from "@/components/CompileButton";
 import TemplateSelector from "@/components/TemplateSelector";
+import CompilerSelector from "@/components/CompilerSelector";
 
 export default function Home() {
   return (
@@ -14,7 +15,10 @@ export default function Home() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Toolbar */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 backdrop-blur-sm">
-          <TemplateSelector />
+          <div className="flex items-center gap-2">
+            <TemplateSelector />
+            <CompilerSelector />
+          </div>
           <CompileButton />
         </div>
 

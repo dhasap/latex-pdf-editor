@@ -9,11 +9,13 @@ interface EditorState {
   error: string | null;
   isApiDown: boolean;
   selectedTemplate: string;
+  compiler: "pdflatex" | "xelatex" | "lualatex";
   setCode: (code: string) => void;
   setPdfUrl: (url: string | null) => void;
   setIsCompiling: (isCompiling: boolean) => void;
   setError: (error: string | null) => void;
   setSelectedTemplate: (template: string) => void;
+  setCompiler: (compiler: "pdflatex" | "xelatex" | "lualatex") => void;
   compile: () => Promise<void>;
   downloadPdf: () => void;
   clearError: () => void;
@@ -28,16 +30,18 @@ export const useEditorStore = create<EditorState>()(
       error: null,
       isApiDown: false,
       selectedTemplate: "article",
+      compiler: "pdflatex",
 
       setCode: (code) => set({ code }),
       setPdfUrl: (url) => set({ pdfUrl: url }),
       setIsCompiling: (isCompiling) => set({ isCompiling }),
       setError: (error) => set({ error }),
       setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+      setCompiler: (compiler) => set({ compiler }),
       clearError: () => set({ error: null, isApiDown: false }),
 
       compile: async () => {
-        const { pdfUrl, code } = get();
+        const { pdfUrl, code, compiler } = get();
 
         // Revoke previous URL
         if (pdfUrl) {
@@ -51,7 +55,7 @@ export const useEditorStore = create<EditorState>()(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              compiler: "pdflatex",
+              compiler,
               resources: [{ main: true, content: code, file: "main.tex" }],
             }),
           });
