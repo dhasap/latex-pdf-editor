@@ -1,10 +1,10 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store";
-import { Loader2, FileText } from "lucide-react";
+import { Loader2, FileText, AlertTriangle, Clock } from "lucide-react";
 
 export default function PDFPreview() {
-  const { pdfUrl, isCompiling, error } = useEditorStore();
+  const { pdfUrl, isCompiling, error, isApiDown } = useEditorStore();
 
   if (isCompiling) {
     return (
@@ -12,6 +12,28 @@ export default function PDFPreview() {
         <Loader2 className="animate-spin mb-4" size={48} />
         <p className="text-lg">Compiling LaTeX...</p>
         <p className="text-sm mt-2">This may take a few seconds</p>
+      </div>
+    );
+  }
+
+  if (isApiDown) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+        <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 max-w-md">
+          <div className="flex items-center justify-center w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/50 mx-auto mb-4">
+            <AlertTriangle className="text-amber-600 dark:text-amber-400" size={32} />
+          </div>
+          <h3 className="text-amber-800 dark:text-amber-200 font-semibold text-lg mb-2">
+            Server Maintenance
+          </h3>
+          <p className="text-amber-700 dark:text-amber-300 text-sm mb-4">
+            {error}
+          </p>
+          <div className="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400 text-xs">
+            <Clock size={14} />
+            <span>Coba lagi dalam beberapa menit</span>
+          </div>
+        </div>
       </div>
     );
   }

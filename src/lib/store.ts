@@ -7,6 +7,7 @@ interface EditorState {
   pdfUrl: string | null;
   isCompiling: boolean;
   error: string | null;
+  isApiDown: boolean;
   selectedTemplate: string;
   setCode: (code: string) => void;
   setPdfUrl: (url: string | null) => void;
@@ -24,6 +25,7 @@ export const useEditorStore = create<EditorState>()(
       pdfUrl: null,
       isCompiling: false,
       error: null,
+      isApiDown: false,
       selectedTemplate: "article",
 
       setCode: (code) => set({ code }),
@@ -34,7 +36,7 @@ export const useEditorStore = create<EditorState>()(
 
       compile: async () => {
         const { code } = get();
-        set({ isCompiling: true, error: null });
+        set({ isCompiling: true, error: null, isApiDown: false });
 
         try {
           const response = await fetch("https://latex.ytotech.com/builds/sync", {
@@ -56,12 +58,23 @@ export const useEditorStore = create<EditorState>()(
 
           if (!response.ok) {
             const errorText = await response.text();
+
+            // Handle 500 error - API down
+            if (response.status === 500) {
+              set({
+                isApiDown: true,
+                error: "Server sedang maintenance/down. Coba lagi nanti.",
+                isCompiling: false
+              });
+              return;
+            }
+
             throw new Error(`Compilation failed: ${errorText}`);
           }
 
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
-          set({ pdfUrl: url, isCompiling: false });
+          set({ pdfUrl: url, isCompiling: false, isApiDown: false });
         } catch (err) {
           set({
             error: err instanceof Error ? err.message : "Unknown error",
