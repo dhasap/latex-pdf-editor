@@ -57,10 +57,15 @@ export const useEditorStore = create<EditorState>()(
           });
 
           if (!response.ok) {
-            const errorText = await response.text();
+            let errorData;
+            try {
+              errorData = await response.json();
+            } catch {
+              errorData = { error: await response.text() };
+            }
 
-            // Handle 500 error - API down
-            if (response.status === 500) {
+            // Handle 500/502 error - API down
+            if (response.status === 500 || response.status === 502) {
               set({
                 isApiDown: true,
                 error: "Server sedang maintenance/down. Coba lagi nanti.",
@@ -69,7 +74,7 @@ export const useEditorStore = create<EditorState>()(
               return;
             }
 
-            throw new Error(`Compilation failed: ${errorText}`);
+            throw new Error(errorData.error || `Compilation failed: ${response.status}`);
           }
 
           const blob = await response.blob();
