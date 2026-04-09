@@ -2,7 +2,7 @@
 
 import { useEditorStore } from "@/lib/store";
 import { templates } from "@/lib/templates";
-import { FileText, ChevronDown, Check, Layout, Type, Presentation, FunctionSquare, Mail } from "lucide-react";
+import { FileText, ChevronDown, Check, Layout, TypeIcon, Presentation, FunctionSquare, Mail } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 const iconMap: Record<string, React.ReactNode> = {
@@ -12,6 +12,8 @@ const iconMap: Record<string, React.ReactNode> = {
   beamer: <Presentation size={16} />,
   math: <FunctionSquare size={16} />,
 };
+
+// Type icon is not available in lucide-react v1.8.0, using FileText as fallback
 
 export default function TemplateSelector() {
   const { selectedTemplate, setSelectedTemplate, setCode } = useEditorStore();

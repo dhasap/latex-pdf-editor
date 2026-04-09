@@ -21,6 +21,7 @@ interface EditorState {
   compile: () => Promise<void>;
   downloadPdf: () => void;
   clearError: () => void;
+  revokePdfUrl: () => void;
 }
 
 export const useEditorStore = create<EditorState>()(
@@ -44,9 +45,23 @@ export const useEditorStore = create<EditorState>()(
       setIsMobile: (isMobile) => set({ isMobile }),
       clearError: () => set({ error: null, isApiDown: false }),
 
+      revokePdfUrl: () => {
+        const { pdfUrl } = get();
+        if (pdfUrl) {
+          URL.revokeObjectURL(pdfUrl);
+          set({ pdfUrl: null });
+        }
+      },
+
       compile: async () => {
-        const { code } = get();
-        set({ isCompiling: true, error: null, isApiDown: false });
+        const { code, pdfUrl } = get();
+
+        // Revoke previous URL to prevent memory leak
+        if (pdfUrl) {
+          URL.revokeObjectURL(pdfUrl);
+        }
+
+        set({ isCompiling: true, error: null, isApiDown: false, pdfUrl: null });
 
         try {
           const response = await fetch("/api/compile", {
@@ -76,25 +91,34 @@ export const useEditorStore = create<EditorState>()(
 
             // Handle 500/502 error - API down
             if (response.status === 500 || response.status === 502) {
+              const error = new Error("Server sedang maintenance/down. Coba lagi nanti.");
               set({
                 isApiDown: true,
-                error: "Server sedang maintenance/down. Coba lagi nanti.",
+                error: error.message,
                 isCompiling: false
               });
-              return;
+              throw error;
             }
 
-            throw new Error(errorData.error || `Compilation failed: ${response.status}`);
+            const error = new Error(errorData.error || `Compilation failed: ${response.status}`);
+            set({
+              error: error.message,
+              isCompiling: false
+            });
+            throw error;
           }
 
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           set({ pdfUrl: url, isCompiling: false, isApiDown: false, activeTab: "preview" });
         } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : "Unknown error";
           set({
-            error: err instanceof Error ? err.message : "Unknown error",
+            error: errorMessage,
             isCompiling: false,
           });
+          // Re-throw so toast.promise can catch it
+          throw err instanceof Error ? err : new Error(errorMessage);
         }
       },
 

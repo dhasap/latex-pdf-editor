@@ -1,8 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/lib/store";
-import { Loader2, FileText, AlertTriangle, Clock, FileX, RefreshCw, Eye } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, FileText, AlertTriangle, Clock, RefreshCw, Eye } from "lucide-react";
 
 export default function PDFPreview() {
   const { pdfUrl, isCompiling, error, isApiDown, compile, clearError } = useEditorStore();
@@ -116,9 +115,11 @@ export default function PDFPreview() {
       <div className="absolute inset-0 flex items-center justify-center p-4 md:p-8">
         <div className="w-full h-full max-w-4xl bg-white shadow-2xl rounded-lg overflow-hidden">
           <iframe
+            key={pdfUrl}
             src={pdfUrl}
             className="w-full h-full border-0"
             title="PDF Preview"
+            sandbox="allow-same-origin allow-scripts"
           />
         </div>
       </div>

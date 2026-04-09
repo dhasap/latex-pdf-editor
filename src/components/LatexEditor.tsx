@@ -62,18 +62,45 @@ export default function LatexEditor() {
           <div className="h-full w-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
             <div className="flex flex-col items-center gap-3">
               <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-sm text-zinc-500">Loading editor...</span>
+              <span className="text-sm text-zinc-500">Loading Monaco Editor...</span>
             </div>
           </div>
         }
+        onMount={(editor, monaco) => {
+          // Configure LaTeX language support
+          monaco.languages.register({ id: "latex" });
+          monaco.languages.setLanguageConfiguration("latex", {
+            comments: {
+              lineComment: "%",
+            },
+            brackets: [
+              ["{", "}"],
+              ["[", "]"],
+              ["(", ")"],
+            ],
+            autoClosingPairs: [
+              { open: "{", close: "}" },
+              { open: "[", close: "]" },
+              { open: "(", close: ")" },
+              { open: "$$", close: "$$" },
+              { open: "$", close: "$" },
+            ],
+            surroundingPairs: [
+              { open: "{", close: "}" },
+              { open: "[", close: "]" },
+              { open: "(", close: ")" },
+              { open: "$", close: "$" },
+            ],
+          });
+        }}
       />
 
       {/* Status Bar */}
       <div className="absolute bottom-0 left-0 right-0 h-6 bg-zinc-100 dark:bg-zinc-800 border-t border-zinc-200 dark:border-zinc-700 flex items-center px-3 text-[10px] text-zinc-500 dark:text-zinc-400 select-none pointer-events-none">
         <span className="font-medium mr-3">LaTeX</span>
         <span className="mr-3">UTF-8</span>
-        <span>{code.split('\n').length} lines</span>
-        <span className="ml-auto">{code.length} characters</span>
+        <span>{(code?.match(/\n/g) || []).length + 1 || 1} lines</span>
+        <span className="ml-auto">{code?.length || 0} characters</span>
       </div>
     </div>
   );

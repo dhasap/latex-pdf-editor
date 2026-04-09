@@ -15,7 +15,7 @@ export default function Home() {
     const checkMobile = () => {
       const isMobileView = window.innerWidth < 1024;
       setIsMobile(isMobileView);
-      if (!isMobileView) {
+      if (!isMobileView && activeTab !== "editor") {
         setActiveTab("editor");
       }
     };
@@ -23,7 +23,8 @@ export default function Home() {
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [setIsMobile, setActiveTab]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950">
