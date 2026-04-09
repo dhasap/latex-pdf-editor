@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "edge";
 
 export async function POST(request: NextRequest) {
+  console.log("[COMPILE] Request received");
+
   try {
     // Parse request body
     let body;
     try {
       body = await request.json();
+      console.log("[COMPILE] Request body parsed:", JSON.stringify(body).substring(0, 200));
     } catch (e) {
+      console.error("[COMPILE] Failed to parse JSON:", e);
       return NextResponse.json(
         { error: "Invalid JSON in request body" },
         { status: 400 }
@@ -17,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!body.compiler || !body.resources) {
+      console.error("[COMPILE] Missing required fields");
       return NextResponse.json(
         { error: "Missing required fields: compiler, resources" },
         { status: 400 }
@@ -24,6 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward to LaTeX API
+    console.log("[COMPILE] Calling latex.ytotech.com...");
     let response;
     try {
       response = await fetch("https://latex.ytotech.com/builds/sync", {
@@ -34,7 +40,9 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify(body),
       });
+      console.log("[COMPILE] LaTeX API responded with status:", response.status);
     } catch (fetchError) {
+      console.error("[COMPILE] Fetch failed:", fetchError);
       return NextResponse.json(
         { error: `Network error connecting to LaTeX API: ${fetchError instanceof Error ? fetchError.message : "Unknown error"}` },
         { status: 502 }
@@ -46,6 +54,7 @@ export async function POST(request: NextRequest) {
       let errorText;
       try {
         errorText = await response.text();
+        console.error("[COMPILE] LaTeX API error response:", errorText.substring(0, 500));
       } catch {
         errorText = "Unable to read error response";
       }
@@ -57,10 +66,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the response as array buffer (more reliable than blob in Edge Runtime)
+    console.log("[COMPILE] Reading response body...");
     let pdfBuffer;
     try {
       pdfBuffer = await response.arrayBuffer();
+      console.log("[COMPILE] PDF buffer received, size:", pdfBuffer.byteLength);
     } catch (bufferError) {
+      console.error("[COMPILE] Failed to read buffer:", bufferError);
       return NextResponse.json(
         { error: `Failed to read PDF response: ${bufferError instanceof Error ? bufferError.message : "Unknown error"}` },
         { status: 500 }
@@ -68,6 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return PDF with proper headers
+    console.log("[COMPILE] Returning PDF response");
     return new Response(pdfBuffer, {
       status: 200,
       headers: {
@@ -79,7 +92,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     // Catch-all for unexpected errors
-    console.error("Unexpected error in compile route:", error);
+    console.error("[COMPILE] Unexpected error:", error);
     return NextResponse.json(
       { error: `Internal server error: ${error instanceof Error ? error.message : "Unknown error"}` },
       { status: 500 }
