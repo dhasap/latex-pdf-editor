@@ -2,14 +2,53 @@
 
 import { useEditorStore } from "@/lib/store";
 import { Loader2, FileText, AlertTriangle, Clock, RefreshCw, Eye } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 export default function PDFPreview() {
   const { pdfUrl, isCompiling, error, isApiDown, compile, clearError } = useEditorStore();
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const currentPdfUrlRef = useRef<string | null>(null);
 
-  const handleRetry = () => {
+  // Track PDF loading state
+  useEffect(() => {
+    if (pdfUrl) {
+      setIsPdfLoading(true);
+      setPdfError(null);
+      currentPdfUrlRef.current = pdfUrl;
+    } else {
+      setIsPdfLoading(false);
+      setPdfError(null);
+      currentPdfUrlRef.current = null;
+    }
+  }, [pdfUrl]);
+
+  // Cleanup URL on unmount
+  useEffect(() => {
+    return () => {
+      // Only revoke if we created this URL
+      if (currentPdfUrlRef.current) {
+        URL.revokeObjectURL(currentPdfUrlRef.current);
+        currentPdfUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleRetry = useCallback(() => {
     clearError();
     compile();
-  };
+  }, [clearError, compile]);
+
+  const handleIframeLoad = useCallback(() => {
+    setIsPdfLoading(false);
+    setPdfError(null);
+  }, []);
+
+  const handleIframeError = useCallback(() => {
+    setIsPdfLoading(false);
+    setPdfError("Failed to load PDF. Please try compiling again.");
+  }, []);
 
   if (isCompiling) {
     return (
@@ -112,14 +151,40 @@ export default function PDFPreview() {
 
   return (
     <div className="h-full w-full bg-zinc-100 dark:bg-zinc-950 relative">
+      {/* PDF Loading Indicator */}
+      {isPdfLoading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-zinc-100/80 dark:bg-zinc-950/80">
+          <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">Loading PDF...</span>
+        </div>
+      )}
+
+      {/* PDF Error */}
+      {pdfError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-zinc-100 dark:bg-zinc-950">
+          <AlertTriangle className="text-amber-600 mb-2" size={32} />
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-2">{pdfError}</p>
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-medium hover:bg-zinc-300 dark:hover:bg-zinc-700"
+          >
+            <RefreshCw size={14} />
+            <span>Reload</span>
+          </button>
+        </div>
+      )}
+
       <div className="absolute inset-0 flex items-center justify-center p-4 md:p-8">
         <div className="w-full h-full max-w-4xl bg-white shadow-2xl rounded-lg overflow-hidden">
           <iframe
-            key={pdfUrl}
+            ref={iframeRef}
             src={pdfUrl}
             className="w-full h-full border-0"
             title="PDF Preview"
-            sandbox="allow-same-origin allow-scripts"
+            onLoad={handleIframeLoad}
+            onError={handleIframeError}
+            // Relaxed sandbox to allow PDF viewing in most browsers
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
           />
         </div>
       </div>

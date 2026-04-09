@@ -59,7 +59,7 @@ Conclude your document here.
 Brief summary of your professional background and key skills.
 
 \\section{Experience}
-\\textbf{Job Title} \\hfill Month Year -- Present\\
+\\textbf{Job Title} \\hfill Month Year -- Present\\\\
 \\textit{Company Name, City}
 \\begin{itemize}[leftmargin=*]
   \\item Achievement 1 with quantifiable results
@@ -68,11 +68,11 @@ Brief summary of your professional background and key skills.
 \\end{itemize}
 
 \\section{Education}
-\\textbf{Degree Name} \\hfill Year\\
+\\textbf{Degree Name} \\hfill Year\\\\
 \\textit{University Name, City}
 
 \\section{Skills}
-\\textbf{Technical:} Skill 1, Skill 2, Skill 3, Skill 4\\
+\\textbf{Technical:} Skill 1, Skill 2, Skill 3, Skill 4\\\\
 \\textbf{Languages:} Language 1, Language 2
 
 \\end{document}`,
@@ -223,4 +223,5 @@ Mathematical expressions like $E = mc^2$ can be typeset inline or as displayed e
   },
 ];
 
+export const defaultTemplateId = templates[0].id;
 export const defaultCode = templates[0].code;

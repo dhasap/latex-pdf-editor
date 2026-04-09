@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { defaultCode } from "./templates";
+import { defaultCode, templates, defaultTemplateId } from "./templates";
 
 interface EditorState {
   code: string;
@@ -11,6 +11,8 @@ interface EditorState {
   selectedTemplate: string;
   activeTab: "editor" | "preview";
   isMobile: boolean;
+  // Track active compile request for cancellation
+  activeCompileAbortController: AbortController | null;
   setCode: (code: string) => void;
   setPdfUrl: (url: string | null) => void;
   setIsCompiling: (isCompiling: boolean) => void;
@@ -22,7 +24,35 @@ interface EditorState {
   downloadPdf: () => void;
   clearError: () => void;
   revokePdfUrl: () => void;
+  cancelCompile: () => void;
+  resetToTemplate: () => void;
+  // Helper to check if current code matches selected template
+  isCodeModified: () => boolean;
 }
+
+// Helper to normalize line endings for comparison
+const normalizeLineEndings = (str: string): string => {
+  return str.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+};
+
+// Helper to validate and fix persisted state
+const validatePersistedState = (state: Partial<EditorState>) => {
+  const validTemplateIds = templates.map((t) => t.id);
+  let needsFix = false;
+  let fixedState: Partial<EditorState> = { ...state };
+
+  // Check if selectedTemplate exists in templates
+  if (!state.selectedTemplate || !validTemplateIds.includes(state.selectedTemplate)) {
+    fixedState.selectedTemplate = defaultTemplateId;
+    fixedState.code = defaultCode;
+    needsFix = true;
+  }
+
+  // If code doesn't match the selected template, it means user modified it
+  // This is valid - we keep the modified code but ensure selectedTemplate is valid
+
+  return { fixedState, needsFix };
+};
 
 export const useEditorStore = create<EditorState>()(
   persist(
@@ -32,36 +62,82 @@ export const useEditorStore = create<EditorState>()(
       isCompiling: false,
       error: null,
       isApiDown: false,
-      selectedTemplate: "article",
+      selectedTemplate: defaultTemplateId,
       activeTab: "editor",
       isMobile: false,
+      activeCompileAbortController: null,
 
       setCode: (code) => set({ code }),
       setPdfUrl: (url) => set({ pdfUrl: url }),
       setIsCompiling: (isCompiling) => set({ isCompiling }),
       setError: (error) => set({ error }),
-      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+      setSelectedTemplate: (template) => {
+        // Validate template exists
+        const validTemplate = templates.find((t) => t.id === template);
+        if (!validTemplate) {
+          console.warn(`[Store] Invalid template ID: ${template}, falling back to default`);
+          set({ selectedTemplate: defaultTemplateId, code: defaultCode });
+          return;
+        }
+        set({ selectedTemplate: template, code: validTemplate.code });
+      },
       setActiveTab: (tab) => set({ activeTab: tab }),
       setIsMobile: (isMobile) => set({ isMobile }),
       clearError: () => set({ error: null, isApiDown: false }),
+
+      cancelCompile: () => {
+        const { activeCompileAbortController } = get();
+        if (activeCompileAbortController) {
+          activeCompileAbortController.abort();
+          set({ activeCompileAbortController: null, isCompiling: false });
+        }
+      },
 
       revokePdfUrl: () => {
         const { pdfUrl } = get();
         if (pdfUrl) {
           URL.revokeObjectURL(pdfUrl);
-          set({ pdfUrl: null });
         }
       },
 
-      compile: async () => {
-        const { code, pdfUrl } = get();
+      resetToTemplate: () => {
+        const { selectedTemplate } = get();
+        const template = templates.find((t) => t.id === selectedTemplate);
+        if (template) {
+          set({ code: template.code });
+        }
+      },
 
-        // Revoke previous URL to prevent memory leak
+      isCodeModified: () => {
+        const { code, selectedTemplate } = get();
+        const template = templates.find((t) => t.id === selectedTemplate);
+        if (!template) return false;
+        return normalizeLineEndings(code) !== normalizeLineEndings(template.code);
+      },
+
+      compile: async () => {
+        const { pdfUrl, activeCompileAbortController } = get();
+
+        // Cancel any ongoing compile request
+        if (activeCompileAbortController) {
+          activeCompileAbortController.abort();
+        }
+
+        // Create new abort controller for this request
+        const abortController = new AbortController();
+
+        // Revoke previous URL and reset state
         if (pdfUrl) {
           URL.revokeObjectURL(pdfUrl);
         }
 
-        set({ isCompiling: true, error: null, isApiDown: false, pdfUrl: null });
+        set({
+          isCompiling: true,
+          error: null,
+          isApiDown: false,
+          pdfUrl: null,
+          activeCompileAbortController: abortController,
+        });
 
         try {
           const response = await fetch("/api/compile", {
@@ -74,12 +150,16 @@ export const useEditorStore = create<EditorState>()(
               resources: [
                 {
                   main: true,
-                  content: code,
+                  content: get().code,
                   file: "main.tex",
                 },
               ],
             }),
+            signal: abortController.signal,
           });
+
+          // Clear abort controller after request completes
+          set({ activeCompileAbortController: null });
 
           if (!response.ok) {
             let errorData;
@@ -95,7 +175,8 @@ export const useEditorStore = create<EditorState>()(
               set({
                 isApiDown: true,
                 error: error.message,
-                isCompiling: false
+                isCompiling: false,
+                pdfUrl: null,
               });
               throw error;
             }
@@ -103,19 +184,52 @@ export const useEditorStore = create<EditorState>()(
             const error = new Error(errorData.error || `Compilation failed: ${response.status}`);
             set({
               error: error.message,
-              isCompiling: false
+              isCompiling: false,
+              pdfUrl: null,
+            });
+            throw error;
+          }
+
+          // Validate content type is PDF
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/pdf")) {
+            const text = await response.text();
+            const error = new Error(`Invalid response type: expected PDF, got ${contentType || "unknown"}. Response: ${text.substring(0, 200)}`);
+            set({
+              error: error.message,
+              isCompiling: false,
+              pdfUrl: null,
             });
             throw error;
           }
 
           const blob = await response.blob();
+
+          // Validate blob is not empty and is PDF
+          if (blob.size === 0) {
+            const error = new Error("Received empty PDF");
+            set({
+              error: error.message,
+              isCompiling: false,
+              pdfUrl: null,
+            });
+            throw error;
+          }
+
           const url = URL.createObjectURL(blob);
           set({ pdfUrl: url, isCompiling: false, isApiDown: false, activeTab: "preview" });
         } catch (err) {
+          // Don't update state if request was aborted
+          if (err instanceof Error && err.name === "AbortError") {
+            return;
+          }
+
           const errorMessage = err instanceof Error ? err.message : "Unknown error";
           set({
             error: errorMessage,
             isCompiling: false,
+            pdfUrl: null,
+            activeCompileAbortController: null,
           });
           // Re-throw so toast.promise can catch it
           throw err instanceof Error ? err : new Error(errorMessage);
@@ -137,6 +251,19 @@ export const useEditorStore = create<EditorState>()(
     {
       name: "latex-editor-storage",
       partialize: (state) => ({ code: state.code, selectedTemplate: state.selectedTemplate }),
+      // Validate and fix persisted state on rehydration
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+
+        const { fixedState, needsFix } = validatePersistedState(state);
+
+        if (needsFix) {
+          console.log("[Store] Fixing invalid persisted state:", fixedState);
+          // Apply fixes
+          state.selectedTemplate = fixedState.selectedTemplate!;
+          state.code = fixedState.code!;
+        }
+      },
     }
   )
 );

@@ -14,8 +14,14 @@ export default function Home() {
   useEffect(() => {
     const checkMobile = () => {
       const isMobileView = window.innerWidth < 1024;
+      const wasMobile = useEditorStore.getState().isMobile;
       setIsMobile(isMobileView);
-      if (!isMobileView && activeTab !== "editor") {
+
+      // Only change tab on transition from desktop to mobile
+      // Don't force tab change when going from mobile to desktop
+      // This preserves user choice on desktop
+      if (isMobileView && !wasMobile) {
+        // Transitioning to mobile - default to editor
         setActiveTab("editor");
       }
     };

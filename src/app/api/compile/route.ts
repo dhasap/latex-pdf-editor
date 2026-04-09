@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "edge";
 
+// URL length limit constants
+const MAX_URL_LENGTH = 8000; // Safe limit for most browsers/servers
+const MAX_CONTENT_LENGTH = 6000; // Leave room for other params
+
 export async function POST(request: NextRequest) {
-  console.log("[COMPILE] Request received - using GET API workaround");
+  console.log("[COMPILE] Request received");
 
   try {
     // Parse request body to get LaTeX code
@@ -32,6 +36,17 @@ export async function POST(request: NextRequest) {
     const latexContent = mainResource.content;
     const compiler = body.compiler || "pdflatex";
 
+    // Check content length before attempting to send
+    if (latexContent.length > MAX_CONTENT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Document too large (${latexContent.length} characters). Maximum allowed is ${MAX_CONTENT_LENGTH} characters due to API limitations.`,
+          code: "CONTENT_TOO_LARGE"
+        },
+        { status: 413 }
+      );
+    }
+
     // Build GET URL with query parameters
     const baseUrl = "https://latex.ytotech.com/builds/sync";
     const params = new URLSearchParams();
@@ -39,6 +54,18 @@ export async function POST(request: NextRequest) {
     params.append("compiler", compiler);
 
     const url = `${baseUrl}?${params.toString()}`;
+
+    // Check URL length
+    if (url.length > MAX_URL_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Generated URL too long (${url.length} chars). Maximum allowed is ${MAX_URL_LENGTH} characters.`,
+          code: "URL_TOO_LONG"
+        },
+        { status: 414 }
+      );
+    }
+
     console.log("[COMPILE] Calling GET API with URL length:", url.length);
 
     // Call the GET API
@@ -86,6 +113,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: `Failed to read PDF response: ${bufferError instanceof Error ? bufferError.message : "Unknown error"}` },
         { status: 500 }
+      );
+    }
+
+    // Validate PDF magic bytes
+    const pdfHeader = new Uint8Array(pdfBuffer.slice(0, 5));
+    const isValidPdf = pdfHeader[0] === 0x25 && // %
+                       pdfHeader[1] === 0x50 && // P
+                       pdfHeader[2] === 0x44 && // D
+                       pdfHeader[3] === 0x46;   // F
+
+    if (!isValidPdf) {
+      // Try to parse as error text
+      const textDecoder = new TextDecoder();
+      const text = textDecoder.decode(pdfBuffer);
+      console.error("[COMPILE] Invalid PDF received:", text.substring(0, 500));
+      return NextResponse.json(
+        { error: `API returned invalid PDF. Response: ${text.substring(0, 200)}` },
+        { status: 502 }
       );
     }
 
