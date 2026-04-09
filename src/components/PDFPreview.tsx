@@ -11,16 +11,23 @@ export default function PDFPreview() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const currentPdfUrlRef = useRef<string | null>(null);
 
-  // Track PDF loading state
+  // Track PDF loading state and cleanup old URLs
   useEffect(() => {
     if (pdfUrl) {
       setIsPdfLoading(true);
       setPdfError(null);
+      // Revoke previous URL before setting new one
+      if (currentPdfUrlRef.current && currentPdfUrlRef.current !== pdfUrl) {
+        URL.revokeObjectURL(currentPdfUrlRef.current);
+      }
       currentPdfUrlRef.current = pdfUrl;
     } else {
       setIsPdfLoading(false);
       setPdfError(null);
-      currentPdfUrlRef.current = null;
+      if (currentPdfUrlRef.current) {
+        URL.revokeObjectURL(currentPdfUrlRef.current);
+        currentPdfUrlRef.current = null;
+      }
     }
   }, [pdfUrl]);
 

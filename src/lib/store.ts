@@ -116,11 +116,13 @@ export const useEditorStore = create<EditorState>()(
       },
 
       compile: async () => {
-        const { pdfUrl, activeCompileAbortController } = get();
+        const { pdfUrl, activeCompileAbortController, isMobile } = get();
 
-        // Cancel any ongoing compile request
+        // Cancel any ongoing compile request and wait briefly
         if (activeCompileAbortController) {
           activeCompileAbortController.abort();
+          // Small delay to ensure cleanup completes
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         // Create new abort controller for this request
@@ -217,7 +219,12 @@ export const useEditorStore = create<EditorState>()(
           }
 
           const url = URL.createObjectURL(blob);
-          set({ pdfUrl: url, isCompiling: false, isApiDown: false, activeTab: "preview" });
+          // Only auto-switch to preview on mobile, not on desktop
+          const state: { pdfUrl: string; isCompiling: boolean; isApiDown: boolean; activeTab?: "editor" | "preview" } = { pdfUrl: url, isCompiling: false, isApiDown: false };
+          if (isMobile) {
+            state.activeTab = "preview";
+          }
+          set(state);
         } catch (err) {
           // Don't update state if request was aborted
           if (err instanceof Error && err.name === "AbortError") {

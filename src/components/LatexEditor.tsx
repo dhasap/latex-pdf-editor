@@ -145,8 +145,10 @@ export default function LatexEditor() {
           // Add custom command for compile
           editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
             // Trigger compile via custom event or direct call
-            const compileButton = document.querySelector('[data-compile-button]') as HTMLButtonElement;
-            compileButton?.click();
+            const compileButton = document.querySelector('[data-compile-button]') as HTMLButtonElement | null;
+            if (compileButton && !compileButton.disabled) {
+              compileButton.click();
+            }
           });
         }}
       />

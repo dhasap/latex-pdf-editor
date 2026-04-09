@@ -89,7 +89,7 @@ export default function TemplateSelector() {
             className="group flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:border-zinc-300 dark:hover:border-zinc-600 hover:shadow-sm transition-all duration-200"
           >
             <div className="flex items-center justify-center w-7 h-7 md:w-8 md:h-8 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600 dark:text-blue-400">
-              {iconMap[displayTemplate.id] || <FileText size={16} />}
+              {iconMap[displayTemplate.id] ?? <FileText size={16} />}
             </div>
             <div className="hidden sm:flex flex-col items-start">
               <span className="text-xs text-zinc-400 dark:text-zinc-500 font-medium">Template</span>
